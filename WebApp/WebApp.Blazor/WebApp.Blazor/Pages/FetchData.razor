@@ -1,0 +1,52 @@
+﻿@page "/fetchdata"
+@inject ApiClient ApiClient
+
+<PageTitle>File data</PageTitle>
+
+<h1>File data</h1>
+
+<p>This component demonstrates fetching data from the server.</p>
+
+@if (fileDatas == null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (fileDatas.Count == 0)
+{
+    <p><em>Empty</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Created At</th>
+                <th>Size (bytes)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var file in fileDatas)
+            {
+                <tr>
+                    <td>@file.Name</td>
+                    <td>@file.CreatedAt.DateTime.ToShortDateString()</td>
+                    <td>@file.SizeInBytes</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private ICollection<FileData>? fileDatas;
+
+    protected override async Task OnInitializedAsync()
+    {
+        fileDatas = await ApiClient.GetFileDatasAsync();
+        foreach (var data in fileDatas)
+        {
+            data.Name = WebUtility.HtmlDecode(data.Name);
+        }
+    }
+}

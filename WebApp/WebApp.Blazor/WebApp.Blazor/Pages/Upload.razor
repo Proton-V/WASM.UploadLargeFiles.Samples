@@ -1,0 +1,113 @@
+﻿@page "/upload"
+@inject IJSRuntime JS
+@inject ILogger<Upload> Logger
+@inject ApiClient ApiClient
+
+<PageTitle>Upload files</PageTitle>
+
+<h1>Upload Files</h1>
+
+<p>
+    <label>
+        Max allowed files:
+        <input type="number" @bind="MaxAllowedFiles" />
+    </label>
+</p>
+
+<p>
+    <label>
+        Upload up to @MaxAllowedFiles:
+        <InputFile OnChange="@LoadFiles" id="@InputFieldId" multiple hidden="@IsUploading" />
+    </label>
+</p>
+
+@if (IsLoading)
+{
+    <p>Uploading...</p>
+}
+else if (IsUploading)
+{
+    <p>Uploading...</p>
+    <progress value="@ProgressBarValue" max="100" style="width:100%;"></progress>
+}
+else if (LoadedFiles.Count != 0)
+{
+    <ul>
+        @foreach (var file in LoadedFiles)
+        {
+            <li>
+                <ul>
+                    <li>Name: @file.Name</li>
+                    <li>Last modified: @file.LastModified.ToString()</li>
+                    <li>Size (bytes): @file.Size</li>
+                    <li>Content type: @file.ContentType</li>
+                </ul>
+            </li>
+        }
+    </ul>
+    <button class="btn btn-primary" @onclick="UploadFilesToServer">Upload files to server</button>
+}
+
+@code {
+    const string InputFieldId = "myFileField";
+    const string UploadFuncName = "uploadFiles";
+
+    private List<IBrowserFile> LoadedFiles { get; set; } = new();
+    private int MaxAllowedFiles { get; set; } = 3;
+    private bool IsLoading { get; set; }
+
+    private bool IsUploading { get; set; }
+    private int ProgressBarValue { get; set; } = 0;
+
+    private string _uploadFilesUrl;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _uploadFilesUrl = Path.Combine(ApiClient.BaseUrl, "FileUploader/UploadFiles");
+    }
+
+    private void LoadFiles(InputFileChangeEventArgs e)
+    {
+        IsLoading = true;
+        LoadedFiles.Clear();
+
+        try
+        {
+            foreach (var file in e.GetMultipleFiles(MaxAllowedFiles))
+            {
+                try
+                {
+                    LoadedFiles.Add(file);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError("File: {FileName} Error: {Error}",
+                        file.Name, ex.Message);
+                }
+            }
+        }
+        catch(Exception ex)
+        {
+            Logger.LogError(ex.Message);
+        }
+        IsLoading = false;
+    }
+
+    private async Task UploadFilesToServer()
+    {
+        ProgressBarValue = 0;
+        IsUploading = true;
+        object dotNetObjectReference = DotNetObjectReference.Create(this);
+        var onprogressFuncName = nameof(UpdateProgressBar);
+        await JS.InvokeVoidAsync(UploadFuncName, new[] { dotNetObjectReference, onprogressFuncName, InputFieldId, _uploadFilesUrl });
+        IsUploading = false;
+    }
+
+    [JSInvokable]
+    public void UpdateProgressBar(float loaded, float total)
+    {
+        var val = loaded/total * 100;
+        ProgressBarValue = (int)val;
+        StateHasChanged();
+    }
+}
